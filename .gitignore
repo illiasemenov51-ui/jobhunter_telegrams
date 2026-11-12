@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+data/cv_base.md
+reference/
+exports/
+.DS_Store

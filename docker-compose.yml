@@ -1,0 +1,40 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      N8N_WEBHOOK_URL: ${WEBHOOK_URL:-https://localhost/}
+      N8N_PROXY_HOPS: 1
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      ALLOWED_CHAT_ID: ${ALLOWED_CHAT_ID:-}
+      LLM_MODEL: ${LLM_MODEL:-claude-3-5-sonnet-latest}
+      CV_SOURCE: ${CV_SOURCE:-file}
+      SHEET_ID: ${SHEET_ID:-}
+      GOOGLE_DRIVE_CV_FILE_ID: ${GOOGLE_DRIVE_CV_FILE_ID:-}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/workflows
+      - ./data:/data:ro
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://n8n:5678
+    depends_on:
+      - n8n
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    expose:
+      - "3000"
+
+volumes:
+  n8n_data:
