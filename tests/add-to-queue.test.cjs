@@ -49,3 +49,18 @@ test('router accepts the configured chat and stable callback IDs', () => {
   assert.equal(result.route, 'skip');
   assert.equal(result.id, 'abcdef123456');
 });
+
+test('router carries pasted vacancy text with the stable id', () => {
+  const event = {message: {chat: {id: 99}, text: '/text abcdef123456 Python and PostgreSQL are required.'}};
+  const result = runRouter(event, {ALLOWED_CHAT_ID: '99'})[0].json;
+  assert.equal(result.route, 'text');
+  assert.equal(result.id, 'abcdef123456');
+  assert.equal(result.vacancy_text, 'Python and PostgreSQL are required.');
+});
+
+test('router recognizes the unmodified CV choice', () => {
+  const event = {callback_query: {id: 'callback-id', data: 'unmodified:abcdef123456', message: {chat: {id: 99}}}};
+  const result = runRouter(event, {ALLOWED_CHAT_ID: '99'})[0].json;
+  assert.equal(result.route, 'unmodified');
+  assert.equal(result.id, 'abcdef123456');
+});

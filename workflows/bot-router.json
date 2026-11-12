@@ -16,7 +16,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const event = $json;\nconst chatId = event.message?.chat?.id ?? event.callback_query?.message?.chat?.id;\nif (chatId === undefined || String(chatId) !== String($env.ALLOWED_CHAT_ID || '')) return [];\nconst text = event.message?.text || '';\nlet route = '';\nlet id = '';\nif (/^\\/(?:start|next)(?:@\\w+)?(?:\\s.*)?$/i.test(text)) route = 'next';\nelse {\n  const add = text.match(/^\\/add(?:@\\w+)?\\s+(\\S+)\\s*$/i);\n  if (add) { route = 'add'; event.vacancy_url = add[1]; }\n}\nif (!route && event.callback_query) {\n  const data = event.callback_query.data || '';\n  if (data === 'stop') route = 'stop';\n  else {\n    const action = data.match(/^(apply|skip):([a-f0-9]{12})$/i);\n    if (action) { route = action[1].toLowerCase(); id = action[2].toLowerCase(); }\n  }\n}\nif (!route) return [];\nreturn [{ json: { ...event, route, id } }];"
+        "jsCode": "const event = $json;\nconst chatId = event.message?.chat?.id ?? event.callback_query?.message?.chat?.id;\nif (chatId === undefined || String(chatId) !== String($env.ALLOWED_CHAT_ID || '')) return [];\nconst text = event.message?.text || '';\nlet route = '';\nlet id = '';\nif (/^\\/(?:start|next)(?:@\\w+)?(?:\\s.*)?$/i.test(text)) route = 'next';\nelse {\n  const add = text.match(/^\\/add(?:@\\w+)?\\s+(\\S+)\\s*$/i);\n  const pasted = text.match(/^\\/text(?:@\\w+)?\\s+([a-f0-9]{12})\\s+([\\s\\S]{1,4000})$/i);\n  if (add) { route = 'add'; event.vacancy_url = add[1]; }\n  else if (pasted) { route = 'text'; id = pasted[1].toLowerCase(); event.vacancy_text = pasted[2].trim(); }\n}\nif (!route && event.callback_query) {\n  const data = event.callback_query.data || '';\n  if (data === 'stop') route = 'stop';\n  else {\n    const action = data.match(/^(apply|skip|unmodified):([a-f0-9]{12})$/i);\n    if (action) { route = action[1].toLowerCase(); id = action[2].toLowerCase(); }\n  }\n}\nif (!route) return [];\nreturn [{ json: { ...event, route, id } }];"
       },
       "id": "ff2558ae-97dc-4fb9-9097-b46d8bb7e248",
       "name": "Authorize and classify",
@@ -27,8 +27,8 @@
     {
       "parameters": {
         "mode": "expression",
-        "numberOutputs": 5,
-        "output": "={{ ['next', 'add', 'apply', 'skip', 'stop'].indexOf($json.route) }}",
+        "numberOutputs": 7,
+        "output": "={{ ['next', 'add', 'apply', 'skip', 'stop', 'text', 'unmodified'].indexOf($json.route) }}",
         "options": {}
       },
       "id": "1df7d4ca-d428-4f85-9295-91d6f1c10bcc",
@@ -141,6 +141,51 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [1000, 320]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $json.callback_query.id }}",
+        "additionalFields": {}
+      },
+      "id": "5b2b5dc6-39b5-4d24-a44c-3a4da6ae4fc3",
+      "name": "Answer unmodified callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [760, 440]
+    },
+    {
+      "parameters": {"mode": "runOnceForEachItem", "jsCode": "return { json: $('Authorize and classify').first().json };"},
+      "id": "c1d129e2-47a0-4b6c-871c-374df3442d9a",
+      "name": "Restore apply event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 80]
+    },
+    {
+      "parameters": {"mode": "runOnceForEachItem", "jsCode": "return { json: $('Authorize and classify').first().json };"},
+      "id": "c2d129e2-47a0-4b6c-871c-374df3442d9a",
+      "name": "Restore skip event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 200]
+    },
+    {
+      "parameters": {"mode": "runOnceForEachItem", "jsCode": "return { json: $('Authorize and classify').first().json };"},
+      "id": "c3d129e2-47a0-4b6c-871c-374df3442d9a",
+      "name": "Restore stop event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 320]
+    },
+    {
+      "parameters": {"mode": "runOnceForEachItem", "jsCode": "return { json: $('Authorize and classify').first().json };"},
+      "id": "c4d129e2-47a0-4b6c-871c-374df3442d9a",
+      "name": "Restore unmodified event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 440]
     }
   ],
   "connections": {
@@ -152,12 +197,19 @@
         [{"node": "Add to queue", "type": "main", "index": 0}],
         [{"node": "Answer apply callback", "type": "main", "index": 0}],
         [{"node": "Answer skip callback", "type": "main", "index": 0}],
-        [{"node": "Answer stop callback", "type": "main", "index": 0}]
+        [{"node": "Answer stop callback", "type": "main", "index": 0}],
+        [{"node": "Handle apply", "type": "main", "index": 0}],
+        [{"node": "Answer unmodified callback", "type": "main", "index": 0}]
       ]
     },
-    "Answer apply callback": {"main": [[{"node": "Handle apply", "type": "main", "index": 0}]]},
-    "Answer skip callback": {"main": [[{"node": "Handle skip", "type": "main", "index": 0}]]},
-    "Answer stop callback": {"main": [[{"node": "Send stopped", "type": "main", "index": 0}]]}
+    "Answer apply callback": {"main": [[{"node": "Restore apply event", "type": "main", "index": 0}]]},
+    "Answer skip callback": {"main": [[{"node": "Restore skip event", "type": "main", "index": 0}]]},
+    "Answer stop callback": {"main": [[{"node": "Restore stop event", "type": "main", "index": 0}]]},
+    "Answer unmodified callback": {"main": [[{"node": "Restore unmodified event", "type": "main", "index": 0}]]},
+    "Restore apply event": {"main": [[{"node": "Handle apply", "type": "main", "index": 0}]]},
+    "Restore skip event": {"main": [[{"node": "Handle skip", "type": "main", "index": 0}]]},
+    "Restore stop event": {"main": [[{"node": "Send stopped", "type": "main", "index": 0}]]},
+    "Restore unmodified event": {"main": [[{"node": "Handle apply", "type": "main", "index": 0}]]}
   },
   "active": false,
   "settings": {"executionOrder": "v1"}
