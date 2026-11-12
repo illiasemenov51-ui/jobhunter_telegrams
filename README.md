@@ -36,10 +36,13 @@ sends email or submits an application.
      imported workflows use n8n credentials.
    - **Anthropic Header Auth:** set header name `x-api-key` and the API key as
      its value. Assign it to the HTTP Request node in `llm-call`.
-   - **Google Sheets OAuth2:** authorize access and assign it to the Sheets
-     nodes. `SHEET_ID` is the spreadsheet ID from its URL.
-   - **Google Drive OAuth2:** configure and assign it to the Drive download
-     node when `CV_SOURCE=drive`.
+   - **Google Service Account:** assign the existing service-account credential
+     to the Google Sheets nodes. `SHEET_ID` is the spreadsheet ID from its URL;
+     share that spreadsheet with the service account's email as an editor.
+     The Sheets nodes are configured for service-account authentication.
+   - **Google Drive:** the Drive download node also uses service-account
+     authentication when `CV_SOURCE=drive`. Share the selected PDF with the
+     service account's email as a viewer.
    - **Gmail OAuth2:** configure and assign it to the Gmail Draft node.
 5. Prepare the Google spreadsheet:
    - A `queue` tab with these headers in row 1:

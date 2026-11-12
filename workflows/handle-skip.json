@@ -3,7 +3,9 @@
   "name": "handle-skip",
   "nodes": [
     {
-      "parameters": {},
+      "parameters": {
+        "inputSource": "passthrough"
+      },
       "id": "dc3ca667-95ee-4335-87ea-62686a345117",
       "name": "When Called",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
@@ -12,6 +14,7 @@
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "read",
         "documentId": {"__rl": true, "mode": "id", "value": "={{ $env.SHEET_ID }}"},
         "sheetName": {"__rl": true, "mode": "name", "value": "queue"},
@@ -50,6 +53,7 @@
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "appendOrUpdate",
         "documentId": {"__rl": true, "mode": "id", "value": "={{ $env.SHEET_ID }}"},
         "sheetName": {"__rl": true, "mode": "name", "value": "queue"},

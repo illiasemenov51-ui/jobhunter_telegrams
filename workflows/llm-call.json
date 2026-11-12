@@ -3,7 +3,9 @@
   "name": "llm-call",
   "nodes": [
     {
-      "parameters": {},
+      "parameters": {
+        "inputSource": "passthrough"
+      },
       "id": "760c70cb-1870-47ee-af83-502d37cc3c5a",
       "name": "When Called",
       "type": "n8n-nodes-base.executeWorkflowTrigger",

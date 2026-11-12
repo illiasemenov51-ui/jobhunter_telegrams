@@ -3,7 +3,9 @@
   "name": "add-to-queue",
   "nodes": [
     {
-      "parameters": {},
+      "parameters": {
+        "inputSource": "passthrough"
+      },
       "id": "b390bd24-0e91-46ec-99f9-5b271b64db71",
       "name": "When Called",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
@@ -58,6 +60,7 @@
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "read",
         "documentId": {"__rl": true, "mode": "id", "value": "={{ $env.SHEET_ID }}"},
         "sheetName": {"__rl": true, "mode": "name", "value": "queue"},
@@ -110,6 +113,7 @@
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "appendOrUpdate",
         "documentId": {"__rl": true, "mode": "id", "value": "={{ $env.SHEET_ID }}"},
         "sheetName": {"__rl": true, "mode": "name", "value": "queue"},
