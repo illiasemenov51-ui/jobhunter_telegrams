@@ -1,0 +1,189 @@
+{
+  "id": "45c9ea36-140f-4e16-bc5f-d25f2f478f08",
+  "name": "add-to-queue",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b390bd24-0e91-46ec-99f9-5b271b64db71",
+      "name": "When Called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const raw = String($json.vacancy_url || '').trim();\nlet url;\ntry { url = new URL(raw); } catch { return { json: { valid: false, error: 'Please use a valid https URL.' } }; }\nconst host = url.hostname.toLowerCase();\nconst net = require('net');\nif (url.protocol !== 'https:' || url.username || url.password || net.isIP(host) || !host.includes('.') || /(^|\\.)(localhost|local|internal|test|invalid)$/.test(host)) {\n  return { json: { valid: false, error: 'Only public https vacancy URLs are accepted.' } };\n}\nconst crypto = require('crypto');\nconst normalizedUrl = url.href;\nconst id = crypto.createHash('sha256').update(normalizedUrl).digest('hex').slice(0, 12);\nlet source = 'manual';\nif (host === 'nofluffjobs.com' || host.endsWith('.nofluffjobs.com')) source = 'nofluffjobs';\nelse if (host === 'justjoin.it' || host.endsWith('.justjoin.it')) source = 'justjoinit';\nelse if (host === 'pracuj.pl' || host.endsWith('.pracuj.pl')) source = 'pracuj';\nelse if (host === 'olx.pl' || host.endsWith('.olx.pl')) source = 'olx';\nreturn { json: { valid: true, id, url: normalizedUrl, status: 'new', source, title: '', company: '', location: '', added_at: new Date().toISOString(), decided_at: '', draft_link: '', notes: '' } };"
+      },
+      "id": "8016a69e-c33d-41c9-a0af-bfa285ad8338",
+      "name": "Validate URL and hash",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {"type": "boolean", "operation": "true", "singleValue": true}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6a612136-5da0-48b2-b56b-1e145e5eebfd",
+      "name": "Is URL valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('When Called').first().json.message.chat.id }}",
+        "text": "={{ $json.error }}",
+        "additionalFields": {"appendAttribution": false}
+      },
+      "id": "994678f6-2334-4f66-9965-6018f2811f15",
+      "name": "Explain invalid URL",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [720, 160]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {"__rl": true, "mode": "id", "value": "={{ $env.SHEET_ID }}"},
+        "sheetName": {"__rl": true, "mode": "name", "value": "queue"},
+        "filtersUI": {
+          "values": [{"lookupColumn": "id", "lookupValue": "={{ $json.id }}"}]
+        },
+        "options": {}
+      },
+      "id": "4d773bc6-3e0f-40c3-85cb-92c247f54a8b",
+      "name": "Find duplicate",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [720, -80],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean($json.id) }}",
+              "rightValue": "",
+              "operator": {"type": "boolean", "operation": "true", "singleValue": true}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dfe0e225-ae67-4c22-85c1-a6d667b453b1",
+      "name": "Is duplicate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [960, -80]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('When Called').first().json.message.chat.id }}",
+        "text": "This vacancy is already in the queue.",
+        "additionalFields": {"appendAttribution": false}
+      },
+      "id": "03b53e83-c52f-4a1f-98bd-3ad3326710b1",
+      "name": "Confirm duplicate",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1200, -200]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {"__rl": true, "mode": "id", "value": "={{ $env.SHEET_ID }}"},
+        "sheetName": {"__rl": true, "mode": "name", "value": "queue"},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Validate URL and hash').first().json.id }}",
+            "url": "={{ $('Validate URL and hash').first().json.url }}",
+            "status": "new",
+            "source": "={{ $('Validate URL and hash').first().json.source }}",
+            "title": "",
+            "company": "",
+            "location": "",
+            "added_at": "={{ $('Validate URL and hash').first().json.added_at }}",
+            "decided_at": "",
+            "draft_link": "",
+            "notes": ""
+          },
+          "matchingColumns": ["id"],
+          "schema": [
+            {"id": "id", "displayName": "id", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "url", "displayName": "url", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "status", "displayName": "status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "source", "displayName": "source", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "title", "displayName": "title", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "company", "displayName": "company", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "location", "displayName": "location", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "added_at", "displayName": "added_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "decided_at", "displayName": "decided_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "draft_link", "displayName": "draft_link", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "notes", "displayName": "notes", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ]
+        },
+        "options": {}
+      },
+      "id": "06b1c2ab-e938-4e10-b261-a48bb805c25a",
+      "name": "Append vacancy",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1200, 40]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('When Called').first().json.message.chat.id }}",
+        "text": "Vacancy added to the queue.",
+        "additionalFields": {"appendAttribution": false}
+      },
+      "id": "a34467ad-9a7f-4d6e-8405-e76b5956e1d1",
+      "name": "Confirm added",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1440, 40]
+    }
+  ],
+  "connections": {
+    "When Called": {"main": [[{"node": "Validate URL and hash", "type": "main", "index": 0}]]},
+    "Validate URL and hash": {"main": [[{"node": "Is URL valid", "type": "main", "index": 0}]]},
+    "Is URL valid": {
+      "main": [
+        [{"node": "Find duplicate", "type": "main", "index": 0}],
+        [{"node": "Explain invalid URL", "type": "main", "index": 0}]
+      ]
+    },
+    "Find duplicate": {"main": [[{"node": "Is duplicate", "type": "main", "index": 0}]]},
+    "Is duplicate": {
+      "main": [
+        [{"node": "Confirm duplicate", "type": "main", "index": 0}],
+        [{"node": "Append vacancy", "type": "main", "index": 0}]
+      ]
+    },
+    "Append vacancy": {"main": [[{"node": "Confirm added", "type": "main", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"}
+}

@@ -12,6 +12,7 @@ services:
       N8N_PROXY_HOPS: 1
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      NODE_FUNCTION_ALLOW_BUILTIN: crypto,net
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       ALLOWED_CHAT_ID: ${ALLOWED_CHAT_ID:-}
       LLM_MODEL: ${LLM_MODEL:-claude-3-5-sonnet-latest}
