@@ -25,7 +25,7 @@ attempt=0
 while [ "$attempt" -lt 60 ]; do
   url=$(docker compose logs --no-color --tail=100 cloudflared 2>&1 |
     grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' |
-    head -n 1 || true)
+    tail -n 1 || true)
   if [ -n "$url" ]; then
     break
   fi
