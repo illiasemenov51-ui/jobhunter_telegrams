@@ -1,0 +1,59 @@
+{
+  "id": "14aee162-92ae-4a57-9424-2239600c66bc",
+  "name": "llm-call",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "760c70cb-1870-47ee-af83-502d37cc3c5a",
+      "name": "When Called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "anthropic-version", "value": "2023-06-01"},
+            {"name": "content-type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $env.LLM_MODEL, max_tokens: $json.max_tokens, system: $json.system_prompt, messages: [{ role: 'user', content: $json.user_content }] }) }}",
+        "options": {}
+      },
+      "id": "74ddb45d-80d5-4dca-afcf-daa84e929544",
+      "name": "Anthropic Messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "if ($json.error) return [{ json: { text: '', error: String($json.error.message || $json.error) } }];\nconst text = $json.content?.find(part => part.type === 'text')?.text;\nif (typeof text !== 'string' || !text.trim()) return [{ json: { text: '', error: 'LLM returned no text' } }];\nreturn [{ json: { text } }];"
+      },
+      "id": "6388ecee-c69f-4d16-b2eb-e6f13193923a",
+      "name": "Return text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 0]
+    }
+  ],
+  "connections": {
+    "When Called": {
+      "main": [[{"node": "Anthropic Messages", "type": "main", "index": 0}]]
+    },
+    "Anthropic Messages": {
+      "main": [[{"node": "Return text", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"}
+}

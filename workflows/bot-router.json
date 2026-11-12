@@ -1,0 +1,164 @@
+{
+  "id": "eb0272a2-65ae-435b-a66f-541e18a1f786",
+  "name": "bot-router",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message", "callback_query"],
+        "additionalFields": {}
+      },
+      "id": "e48f65a7-ad9d-40c4-96e4-7a8a729dd010",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "webhookId": "job-swipe-router"
+    },
+    {
+      "parameters": {
+        "jsCode": "const event = $json;\nconst chatId = event.message?.chat?.id ?? event.callback_query?.message?.chat?.id;\nif (chatId === undefined || String(chatId) !== String($env.ALLOWED_CHAT_ID || '')) return [];\nconst text = event.message?.text || '';\nlet route = '';\nlet id = '';\nif (/^\\/(?:start|next)(?:@\\w+)?(?:\\s.*)?$/i.test(text)) route = 'next';\nelse {\n  const add = text.match(/^\\/add(?:@\\w+)?\\s+(\\S+)\\s*$/i);\n  if (add) { route = 'add'; event.vacancy_url = add[1]; }\n}\nif (!route && event.callback_query) {\n  const data = event.callback_query.data || '';\n  if (data === 'stop') route = 'stop';\n  else {\n    const action = data.match(/^(apply|skip):([a-f0-9]{12})$/i);\n    if (action) { route = action[1].toLowerCase(); id = action[2].toLowerCase(); }\n  }\n}\nif (!route) return [];\nreturn [{ json: { ...event, route, id } }];"
+      },
+      "id": "ff2558ae-97dc-4fb9-9097-b46d8bb7e248",
+      "name": "Authorize and classify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 5,
+        "output": "={{ ['next', 'add', 'apply', 'skip', 'stop'].indexOf($json.route) }}",
+        "options": {}
+      },
+      "id": "1df7d4ca-d428-4f85-9295-91d6f1c10bcc",
+      "name": "Route action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.5,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {"__rl": true, "value": "b3ea4645-2d21-48f2-a6af-1bc56de5f2e7", "mode": "id"},
+        "mode": "once",
+        "options": {"waitForSubWorkflow": true}
+      },
+      "id": "d7535855-7416-4680-967e-79ce39487f72",
+      "name": "Send next card",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [760, -160]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {"__rl": true, "value": "45c9ea36-140f-4e16-bc5f-d25f2f478f08", "mode": "id"},
+        "mode": "once",
+        "options": {"waitForSubWorkflow": true}
+      },
+      "id": "3da84619-e8b7-4447-9691-8c021a02bb51",
+      "name": "Add to queue",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [760, -40]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $json.callback_query.id }}",
+        "additionalFields": {}
+      },
+      "id": "886a1b7f-ef22-4bf3-bc92-8fbd06065ac4",
+      "name": "Answer apply callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [760, 80]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {"__rl": true, "value": "5e8a40b4-9f7d-4e55-b858-9a06c4e048cc", "mode": "id"},
+        "mode": "once",
+        "options": {"waitForSubWorkflow": true}
+      },
+      "id": "e78b06fd-4c71-4700-bec5-2ce8cbfb7340",
+      "name": "Handle apply",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [1000, 80]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $json.callback_query.id }}",
+        "additionalFields": {}
+      },
+      "id": "edba0933-f10a-4855-82d6-9aa4f411b909",
+      "name": "Answer skip callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [760, 200]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {"__rl": true, "value": "6f1d7104-cfd9-4c91-8c7d-fb8956a81374", "mode": "id"},
+        "mode": "once",
+        "options": {"waitForSubWorkflow": true}
+      },
+      "id": "d47e2115-6dca-40db-9065-433452f4278d",
+      "name": "Handle skip",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $json.callback_query.id }}",
+        "additionalFields": {}
+      },
+      "id": "b2b30b2b-6e8e-4646-bab3-7ac6e2550542",
+      "name": "Answer stop callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [760, 320]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.callback_query.message.chat.id }}",
+        "text": "Stopped",
+        "additionalFields": {"appendAttribution": false}
+      },
+      "id": "8c6b2c5b-86a7-42c6-8c0c-1b1b8c2f66d0",
+      "name": "Send stopped",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1000, 320]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {"main": [[{"node": "Authorize and classify", "type": "main", "index": 0}]]},
+    "Authorize and classify": {"main": [[{"node": "Route action", "type": "main", "index": 0}]]},
+    "Route action": {
+      "main": [
+        [{"node": "Send next card", "type": "main", "index": 0}],
+        [{"node": "Add to queue", "type": "main", "index": 0}],
+        [{"node": "Answer apply callback", "type": "main", "index": 0}],
+        [{"node": "Answer skip callback", "type": "main", "index": 0}],
+        [{"node": "Answer stop callback", "type": "main", "index": 0}]
+      ]
+    },
+    "Answer apply callback": {"main": [[{"node": "Handle apply", "type": "main", "index": 0}]]},
+    "Answer skip callback": {"main": [[{"node": "Handle skip", "type": "main", "index": 0}]]},
+    "Answer stop callback": {"main": [[{"node": "Send stopped", "type": "main", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"}
+}
