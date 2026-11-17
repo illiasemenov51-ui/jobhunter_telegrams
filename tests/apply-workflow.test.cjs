@@ -8,6 +8,41 @@ const workflow = JSON.parse(fs.readFileSync(path.join(root, 'workflows/handle-ap
 const nodes = new Map(workflow.nodes.map(node => [node.name, node]));
 const tailoringPrompt = nodes.get('Prepare CV tailoring request').parameters.jsCode;
 
+test('CV tailoring reads and applies the optional user preference values', () => {
+  const readPreferences = nodes.get('Read user preferences');
+  const prepare = nodes.get('Prepare CV tailoring request');
+  assert.equal(readPreferences.parameters.sheetName.value, 'config');
+  assert.equal(readPreferences.parameters.operation, 'read');
+  assert.equal(readPreferences.alwaysOutputData, true);
+  assert.equal(prepare.parameters.mode, 'runOnceForAllItems');
+  assert.equal(workflow.connections['Read user preferences'].main[1][0].node, 'Report apply error');
+
+  const context = {
+    base_cv_text: 'Python, PostgreSQL',
+    vacancy: {title: 'Backend developer'},
+    raw_vacancy_text: 'Python role'
+  };
+  const rows = [
+    {key: 'preferred_keywords', value: 'Python, PostgreSQL'},
+    {key: 'excluded_keywords', value: 'on-call; legacy'},
+    {key: 'languages', value: 'English\nPolish'},
+    {key: 'seniority', value: 'Senior'}
+  ];
+  const run = new Function('$input', '$', prepare.parameters.jsCode);
+  const result = run({all: () => rows.map(json => ({json}))}, () => ({first: () => ({json: context})}))[0].json;
+  const userContent = JSON.parse(result.user_content);
+
+  assert.deepEqual(userContent.user_preferences, {
+    preferred_keywords: ['Python', 'PostgreSQL'],
+    excluded_keywords: ['on-call', 'legacy'],
+    languages: ['English', 'Polish'],
+    seniority: ['Senior']
+  });
+  assert.equal(userContent.base_cv, context.base_cv_text);
+  assert.ok(result.system_prompt.includes('Never invent employers, dates, skills, certificates, or metrics'));
+  assert.ok(result.system_prompt.includes('De-emphasize excluded keywords'));
+});
+
 test('tailoring prompt contains the required factuality and output constraints', () => {
   for (const phrase of [
     'untrusted data',

@@ -50,7 +50,9 @@ sends email or submits an application.
      `added_at`, `decided_at`, `draft_link`, `notes`.
    - A `config` tab with `key` and `value` headers. Suggested keys are
      `preferred_keywords`, `excluded_keywords`, `languages`, and `seniority`.
-     Current workflows do not yet read these values.
+      For tailored CVs, separate multiple values with commas, semicolons, or
+      line breaks. These preferences guide emphasis and target seniority without
+      overriding facts in the base CV or the vacancy's language.
 6. Configure a real CV:
    - For local mode, copy `data/cv_base.example.md` to `data/cv_base.md` and
      replace the example with your own accurate CV. The file is git-ignored and
