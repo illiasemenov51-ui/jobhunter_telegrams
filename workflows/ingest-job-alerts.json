@@ -1,0 +1,126 @@
+{
+  "id": "9cd8b7fa-8de8-4c1c-9c07-b9d43f0c7c1d",
+  "name": "ingest-job-alerts",
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "read",
+        "documentId": {"__rl": true, "mode": "id", "value": "={{ $env.SHEET_ID }}"},
+        "sheetName": {"__rl": true, "mode": "name", "value": "queue"},
+        "options": {}
+      },
+      "id": "12ae6695-c861-430d-91c7-e94a8ba7de40",
+      "name": "Read existing queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [720, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const existing = new Set($input.all().map(item => String(item.json.id || '').toLowerCase()).filter(Boolean));\nreturn $('Extract vacancy links').all().filter(item => !existing.has(String(item.json.id).toLowerCase())).map(item => ({ json: item.json }));"
+      },
+      "id": "a8c55930-a5e5-4441-a5c5-0418cbd90adc",
+      "name": "Keep only new vacancies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 0]
+    },
+    {
+      "parameters": {"rule": {"interval": [{"field": "hours", "hoursInterval": 6}]}},
+      "id": "5142fb6d-1653-4ef5-bc79-a0a4b7e098a1",
+      "name": "Every 6 hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 50,
+        "filters": {"q": "label:\"Job Alerts\" newer_than:2d"}
+      },
+      "id": "369d02e6-8df3-465c-b390-e9f57bca4b27",
+      "name": "Read job alert emails",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const crypto = require('crypto');\nconst allowed = [\n  ['linkedin.com', /\\/jobs\\/view\\//i, 'linkedin'],\n  ['pracuj.pl', /\\/(?:praca|oferta-pracy)\\//i, 'pracuj'],\n  ['justjoin.it', /\\/(?:job-offer|offers|oferty-pracy)\\//i, 'justjoinit'],\n  ['nofluffjobs.com', /\\/(?:job|pl\\/job)\\//i, 'nofluffjobs'],\n  ['theprotocol.it', /\\/filtry\\/|\\/szczegoly\\//i, 'theprotocol'],\n  ['bulldogjob.pl', /\\/companies\\/jobs\\//i, 'bulldogjob'],\n  ['rocketjobs.pl', /\\/oferta-pracy\\//i, 'rocketjobs'],\n  ['wellfound.com', /\\/jobs\\//i, 'wellfound'],\n  ['remoteok.com', /\\/remote-jobs\\//i, 'remoteok'],\n  ['weworkremotely.com', /\\/remote-jobs\\//i, 'weworkremotely']\n];\nconst clean = value => String(value).replace(/&amp;/g, '&').replace(/[)>\\]}'\".,;]+$/g, '');\nconst unwrap = raw => {\n  let value = clean(raw);\n  for (let i = 0; i < 3; i++) {\n    let parsed;\n    try { parsed = new URL(value); } catch { return null; }\n    const nested = ['url', 'u', 'target', 'redirect', 'redirect_url'].map(key => parsed.searchParams.get(key)).find(Boolean);\n    if (!nested) break;\n    try { value = decodeURIComponent(nested); } catch { value = nested; }\n  }\n  try {\n    const url = new URL(value);\n    url.hash = '';\n    for (const key of [...url.searchParams.keys()]) if (/^(utm_|trk|tracking|ref|source|campaign|mc_)/i.test(key)) url.searchParams.delete(key);\n    return url;\n  } catch { return null; }\n};\nconst found = new Map();\nfor (const item of $input.all()) {\n  const blob = JSON.stringify(item.json);\n  const urls = blob.match(/https?:\\/\\/[^\\s<>]+/gi) || [];\n  for (const raw of urls) {\n    const url = unwrap(raw);\n    if (!url || url.protocol !== 'https:') continue;\n    const host = url.hostname.toLowerCase().replace(/^www\\./, '');\n    const match = allowed.find(([domain, path]) => (host === domain || host.endsWith('.' + domain)) && path.test(url.pathname));\n    if (!match) continue;\n    const normalized = url.href;\n    const id = crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 12);\n    found.set(id, { id, url: normalized, status: 'new', source: match[2], title: '', company: '', location: '', added_at: new Date().toISOString(), decided_at: '', draft_link: '', notes: 'Imported automatically from Gmail label Job Alerts' });\n  }\n}\nreturn [...found.values()].map(json => ({ json }));"
+      },
+      "id": "9d3e68c2-2675-4f52-837f-256d228e2fd7",
+      "name": "Extract vacancy links",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "appendOrUpdate",
+        "documentId": {"__rl": true, "mode": "id", "value": "={{ $env.SHEET_ID }}"},
+        "sheetName": {"__rl": true, "mode": "name", "value": "queue"},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}", "url": "={{ $json.url }}", "status": "={{ $json.status }}",
+            "source": "={{ $json.source }}", "title": "={{ $json.title }}", "company": "={{ $json.company }}",
+            "location": "={{ $json.location }}", "added_at": "={{ $json.added_at }}", "decided_at": "",
+            "draft_link": "", "notes": "={{ $json.notes }}"
+          },
+          "matchingColumns": ["id"],
+          "schema": [
+            {"id":"id","displayName":"id","type":"string","canBeUsedToMatch":true},
+            {"id":"url","displayName":"url","type":"string","canBeUsedToMatch":true},
+            {"id":"status","displayName":"status","type":"string","canBeUsedToMatch":true},
+            {"id":"source","displayName":"source","type":"string","canBeUsedToMatch":true},
+            {"id":"title","displayName":"title","type":"string","canBeUsedToMatch":true},
+            {"id":"company","displayName":"company","type":"string","canBeUsedToMatch":true},
+            {"id":"location","displayName":"location","type":"string","canBeUsedToMatch":true},
+            {"id":"added_at","displayName":"added_at","type":"string","canBeUsedToMatch":true},
+            {"id":"decided_at","displayName":"decided_at","type":"string","canBeUsedToMatch":true},
+            {"id":"draft_link","displayName":"draft_link","type":"string","canBeUsedToMatch":true},
+            {"id":"notes","displayName":"notes","type":"string","canBeUsedToMatch":true}
+          ]
+        },
+        "options": {}
+      },
+      "id": "20cf2d8c-e365-4ef7-9cb8-30040433773f",
+      "name": "Upsert alert vacancies",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1200, 0]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $env.ALLOWED_CHAT_ID }}",
+        "text": "={{ '🔎 Added ' + $('Keep only new vacancies').all().length + ' new vacancy link(s) from Job Alerts. Send /next to review the queue.' }}",
+        "additionalFields": {"appendAttribution": false}
+      },
+      "id": "bde9235a-7267-435c-aa0f-c2c679a0adbd",
+      "name": "Report ingestion",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1440, 0]
+    }
+  ],
+  "connections": {
+    "Every 6 hours": {"main": [[{"node":"Read job alert emails","type":"main","index":0}]]},
+    "Read job alert emails": {"main": [[{"node":"Extract vacancy links","type":"main","index":0}]]},
+    "Extract vacancy links": {"main": [[{"node":"Read existing queue","type":"main","index":0}]]},
+    "Read existing queue": {"main": [[{"node":"Keep only new vacancies","type":"main","index":0}]]},
+    "Keep only new vacancies": {"main": [[{"node":"Upsert alert vacancies","type":"main","index":0}]]},
+    "Upsert alert vacancies": {"main": [[{"node":"Report ingestion","type":"main","index":0}]]}
+  },
+  "active": false,
+  "settings": {"executionOrder":"v1"}
+}

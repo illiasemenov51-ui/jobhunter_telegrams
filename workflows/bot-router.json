@@ -4,19 +4,21 @@
   "nodes": [
     {
       "parameters": {
-        "updates": ["message", "callback_query"],
-        "additionalFields": {}
+        "httpMethod": "POST",
+        "path": "telegram-updates",
+        "responseMode": "onReceived",
+        "options": {}
       },
       "id": "e48f65a7-ad9d-40c4-96e4-7a8a729dd010",
-      "name": "Telegram Trigger",
-      "type": "n8n-nodes-base.telegramTrigger",
-      "typeVersion": 1.2,
+      "name": "Telegram webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
       "position": [0, 0],
       "webhookId": "job-swipe-router"
     },
     {
       "parameters": {
-        "jsCode": "const event = $json;\nconst chatId = event.message?.chat?.id ?? event.callback_query?.message?.chat?.id;\nif (chatId === undefined || String(chatId) !== String($env.ALLOWED_CHAT_ID || '')) return [];\nconst text = event.message?.text || '';\nlet route = '';\nlet id = '';\nif (/^\\/(?:start|next)(?:@\\w+)?(?:\\s.*)?$/i.test(text)) route = 'next';\nelse {\n  const add = text.match(/^\\/add(?:@\\w+)?\\s+(\\S+)\\s*$/i);\n  const pasted = text.match(/^\\/text(?:@\\w+)?\\s+([a-f0-9]{12})\\s+([\\s\\S]{1,4000})$/i);\n  if (add) { route = 'add'; event.vacancy_url = add[1]; }\n  else if (pasted) { route = 'text'; id = pasted[1].toLowerCase(); event.vacancy_text = pasted[2].trim(); }\n}\nif (!route && event.callback_query) {\n  const data = event.callback_query.data || '';\n  if (data === 'stop') route = 'stop';\n  else {\n    const action = data.match(/^(apply|skip|unmodified):([a-f0-9]{12})$/i);\n    if (action) { route = action[1].toLowerCase(); id = action[2].toLowerCase(); }\n  }\n}\nif (!route) return [];\nreturn [{ json: { ...event, route, id } }];"
+        "jsCode": "const envelope = $json;\nconst expectedSecret = String($env.TELEGRAM_FORWARD_SECRET || '');\nif (!expectedSecret || String(envelope.headers?.['x-telegram-forward-secret'] || '') !== expectedSecret) return [];\nconst event = envelope.body && typeof envelope.body === 'object' ? envelope.body : envelope;\nconst chatId = event.message?.chat?.id ?? event.callback_query?.message?.chat?.id;\nif (chatId === undefined || String(chatId) !== String($env.ALLOWED_CHAT_ID || '')) return [];\nconst text = event.message?.text || '';\nlet route = '';\nlet id = '';\nif (/^\\/help(?:@\\w+)?(?:\\s.*)?$/i.test(text)) route = 'help';\nelse if (/^\\/(?:start|next)(?:@\\w+)?(?:\\s.*)?$/i.test(text)) route = 'next';\nelse {\n  const add = text.match(/^\\/add(?:@\\w+)?\\s+(\\S+)\\s*$/i);\n  const pasted = text.match(/^\\/text(?:@\\w+)?\\s+([a-f0-9]{12})\\s+([\\s\\S]{1,4000})$/i);\n  if (add) { route = 'add'; event.vacancy_url = add[1]; }\n  else if (pasted) { route = 'text'; id = pasted[1].toLowerCase(); event.vacancy_text = pasted[2].trim(); }\n}\nif (!route && event.callback_query) {\n  const data = event.callback_query.data || '';\n  if (data === 'stop') route = 'stop';\n  else {\n    const action = data.match(/^(apply|skip|unmodified):([a-f0-9]{12})$/i);\n    if (action) { route = action[1].toLowerCase(); id = action[2].toLowerCase(); }\n  }\n}\nif (!route) return [];\nreturn [{ json: { ...event, chat_id: String(chatId), route, id } }];"
       },
       "id": "ff2558ae-97dc-4fb9-9097-b46d8bb7e248",
       "name": "Authorize and classify",
@@ -27,8 +29,8 @@
     {
       "parameters": {
         "mode": "expression",
-        "numberOutputs": 7,
-        "output": "={{ ['next', 'add', 'apply', 'skip', 'stop', 'text', 'unmodified'].indexOf($json.route) }}",
+        "numberOutputs": 8,
+        "output": "={{ ['next', 'add', 'apply', 'skip', 'stop', 'text', 'unmodified', 'help'].indexOf($json.route) }}",
         "options": {}
       },
       "id": "1df7d4ca-d428-4f85-9295-91d6f1c10bcc",
@@ -132,7 +134,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $json.callback_query.message.chat.id }}",
+        "chatId": "={{ $json.chat_id }}",
         "text": "Stopped",
         "additionalFields": {"appendAttribution": false}
       },
@@ -154,6 +156,20 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [760, 440]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "Job Swipe commands:\\n/next — show the next vacancy\\n/add <https://...> — add a vacancy\\n/text <id> <vacancy text> — provide posting text when a page cannot be read\\n\\nApply creates a tailored CV PDF and a Gmail draft only. Review and send the application yourself. /start is the same as /next.",
+        "additionalFields": {"appendAttribution": false}
+      },
+      "id": "032a873b-23fa-46a9-9b89-05463bfa2a92",
+      "name": "Send help",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [760, 560]
     },
     {
       "parameters": {"mode": "runOnceForEachItem", "jsCode": "return { json: $('Authorize and classify').first().json };"},
@@ -189,7 +205,7 @@
     }
   ],
   "connections": {
-    "Telegram Trigger": {"main": [[{"node": "Authorize and classify", "type": "main", "index": 0}]]},
+    "Telegram webhook": {"main": [[{"node": "Authorize and classify", "type": "main", "index": 0}]]},
     "Authorize and classify": {"main": [[{"node": "Route action", "type": "main", "index": 0}]]},
     "Route action": {
       "main": [
@@ -199,7 +215,8 @@
         [{"node": "Answer skip callback", "type": "main", "index": 0}],
         [{"node": "Answer stop callback", "type": "main", "index": 0}],
         [{"node": "Handle apply", "type": "main", "index": 0}],
-        [{"node": "Answer unmodified callback", "type": "main", "index": 0}]
+        [{"node": "Answer unmodified callback", "type": "main", "index": 0}],
+        [{"node": "Send help", "type": "main", "index": 0}]
       ]
     },
     "Answer apply callback": {"main": [[{"node": "Restore apply event", "type": "main", "index": 0}]]},

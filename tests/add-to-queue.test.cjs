@@ -8,8 +8,13 @@ const root = path.resolve(__dirname, '..');
 const loadWorkflow = name => JSON.parse(fs.readFileSync(path.join(root, 'workflows', `${name}.json`), 'utf8'));
 const addCode = loadWorkflow('add-to-queue').nodes.find(node => node.name === 'Validate URL and hash').parameters.jsCode;
 const routerCode = loadWorkflow('bot-router').nodes.find(node => node.name === 'Authorize and classify').parameters.jsCode;
+const forwardSecret = 'test-forward-secret-' + 'a'.repeat(32);
 const runAdd = url => new Function('$json', 'require', addCode)({vacancy_url: url}, require).json;
-const runRouter = (event, env) => new Function('$json', '$env', routerCode)(event, env);
+const executeRouter = (envelope, env) => new Function('$json', '$env', routerCode)(envelope, env);
+const runRouter = (event, env) => executeRouter({
+  body: event,
+  headers: {'x-telegram-forward-secret': forwardSecret}
+}, {...env, TELEGRAM_FORWARD_SECRET: forwardSecret});
 
 test('normalizes and hashes an accepted vacancy URL', () => {
   const result = runAdd('https://www.justjoin.it/offers/python-role');
@@ -43,11 +48,22 @@ test('router silently ignores chats outside the allowlist', () => {
   assert.deepEqual(result, []);
 });
 
+test('router rejects webhook requests without the poller secret', () => {
+  const env = {ALLOWED_CHAT_ID: '99', TELEGRAM_FORWARD_SECRET: forwardSecret};
+  const body = {body: {message: {chat: {id: 99}, text: '/next'}}};
+  assert.deepEqual(executeRouter(body, env), []);
+  assert.deepEqual(executeRouter({
+    ...body,
+    headers: {'x-telegram-forward-secret': 'wrong-secret'}
+  }, env), []);
+});
+
 test('router accepts the configured chat and stable callback IDs', () => {
   const event = {callback_query: {id: 'callback-id', data: 'skip:abcdef123456', message: {chat: {id: 99}}}};
   const result = runRouter(event, {ALLOWED_CHAT_ID: '99'})[0].json;
   assert.equal(result.route, 'skip');
   assert.equal(result.id, 'abcdef123456');
+  assert.equal(result.chat_id, '99');
 });
 
 test('router carries pasted vacancy text with the stable id', () => {
@@ -56,6 +72,7 @@ test('router carries pasted vacancy text with the stable id', () => {
   assert.equal(result.route, 'text');
   assert.equal(result.id, 'abcdef123456');
   assert.equal(result.vacancy_text, 'Python and PostgreSQL are required.');
+  assert.equal(result.chat_id, '99');
 });
 
 test('router recognizes the unmodified CV choice', () => {
@@ -63,4 +80,17 @@ test('router recognizes the unmodified CV choice', () => {
   const result = runRouter(event, {ALLOWED_CHAT_ID: '99'})[0].json;
   assert.equal(result.route, 'unmodified');
   assert.equal(result.id, 'abcdef123456');
+});
+
+test('router sends /help to the authorized Telegram chat', () => {
+  const workflow = loadWorkflow('bot-router');
+  const event = {message: {chat: {id: 99}, text: '/help'}};
+  const result = runRouter(event, {ALLOWED_CHAT_ID: '99'})[0].json;
+  const router = workflow.nodes.find(node => node.name === 'Route action');
+
+  assert.equal(result.route, 'help');
+  assert.equal(workflow.nodes[0].type, 'n8n-nodes-base.webhook');
+  assert.equal(workflow.nodes[0].parameters.path, 'telegram-updates');
+  assert.ok(router.parameters.output.includes("'unmodified', 'help'"));
+  assert.equal(workflow.connections['Route action'].main[7][0].node, 'Send help');
 });

@@ -107,7 +107,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.callback_query.message.chat.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
         "text": "This vacancy is no longer available for a decision. No queue status was changed.",
         "additionalFields": {"appendAttribution": false}
       },

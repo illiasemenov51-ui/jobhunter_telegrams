@@ -48,7 +48,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.message.chat.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id }}",
         "text": "={{ $json.error }}",
         "additionalFields": {"appendAttribution": false}
       },
@@ -101,7 +101,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.message.chat.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id }}",
         "text": "This vacancy is already in the queue.",
         "additionalFields": {"appendAttribution": false}
       },
@@ -159,7 +159,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.message.chat.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id }}",
         "text": "Vacancy added to the queue.",
         "additionalFields": {"appendAttribution": false}
       },

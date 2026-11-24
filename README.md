@@ -6,7 +6,7 @@ sends email or submits an application.
 
 ## Setup
 
-1. Install Docker Desktop with Compose, then clone this repository:
+1. Install Docker with Compose, then clone this repository:
 
    ```sh
    git clone <repository-url> jobhunter_telegrams
@@ -14,10 +14,11 @@ sends email or submits an application.
    cp .env.example .env
    ```
 
-2. Edit `.env` and set `ALLOWED_CHAT_ID`, `SHEET_ID`, `CV_SOURCE`, and (if
-   needed) `GOOGLE_DRIVE_CV_FILE_ID` and `LLM_MODEL`. Leave
-   `N8N_ENCRYPTION_KEY` blank; the start script generates it. Do not put
-   credentials in workflow JSON or commit `.env`.
+2. Edit `.env` and set `TELEGRAM_BOT_TOKEN`, `ALLOWED_CHAT_ID`, `SHEET_ID`,
+   `CV_SOURCE`, and (if needed) `GOOGLE_DRIVE_CV_FILE_ID`. The start script
+   generates `N8N_ENCRYPTION_KEY` and `TELEGRAM_FORWARD_SECRET` when missing.
+   The default model is `claude-sonnet-5-5`; Anthropic bills API usage. Do not
+   put credentials in workflow JSON or commit `.env`.
 3. Start the stack and import the workflows:
 
    ```sh
@@ -25,15 +26,15 @@ sends email or submits an application.
    ./scripts/import.sh
    ```
 
-   The script prints the n8n UI address and a temporary HTTPS Cloudflare Quick
-   Tunnel URL. Quick Tunnel URLs can change after a restart; rerun
-   `./scripts/start.sh` to refresh `WEBHOOK_URL`.
+   The script starts n8n, Gotenberg, and the Telegram polling service when the
+   bot token is configured. Polling needs outbound HTTPS only, not a public URL
+   or domain. The n8n editor remains bound to localhost.
 4. Open `http://localhost:5678`, create the n8n owner account, and configure
    credentials in n8n:
-   - **Telegram API:** create a bot with BotFather and add its token as an n8n
-     Telegram credential. Assign it to the Telegram Trigger and Telegram nodes.
-     The `TELEGRAM_BOT_TOKEN` variable is only a placeholder/reference; the
-     imported workflows use n8n credentials.
+   - **Telegram API:** create a bot with BotFather. Put its token in
+     `TELEGRAM_BOT_TOKEN` for the polling service and add the same token as an
+     n8n Telegram credential for outgoing messages. The inbound router uses a
+     private Webhook node protected by `TELEGRAM_FORWARD_SECRET`.
    - **Anthropic Header Auth:** set header name `x-api-key` and the API key as
      its value. Assign it to the HTTP Request node in `llm-call`.
    - **Google Service Account:** assign the existing service-account credential
@@ -60,9 +61,16 @@ sends email or submits an application.
    - For Drive mode, set `CV_SOURCE=drive` and `GOOGLE_DRIVE_CV_FILE_ID` to a
      PDF file ID, then make sure the Drive credential can read it.
 7. In n8n, open the workflows and assign credentials to their nodes. Activate
-   **only `bot-router`**; its single Telegram Trigger routes messages and
-   callbacks to the inactive sub-workflows. Use the same bot configured above.
-8. Send `/next` to the bot. Use `/add https://...` to add a vacancy manually.
+   **only `bot-router`**; its private Webhook routes updates from the polling
+   service to the inactive sub-workflows. Use the same bot configured above.
+8. Send `/help` to see the bot commands, `/next` to review the next vacancy,
+   or `/add https://...` to add a vacancy manually.
+
+### Optional Gmail alerts (not enabled)
+
+The repository also contains `workflows/ingest-job-alerts.json`, but the
+current setup uses only manual `/add` and `/next`. Leave this optional workflow
+inactive unless you later choose to enable Gmail-alert ingestion.
 
 Never paste API keys, bot tokens, or your real CV into chat. Enter credentials
 only in your local n8n UI and keep personal CV data out of git.
@@ -71,6 +79,8 @@ only in your local n8n UI and keep personal CV data out of git.
 
 - `/next` and `/start` show one `new` queue row, fetch its URL, and send a card
   with Apply, Skip, and Stop buttons.
+- `/help` lists the available commands and explains that applications remain
+  drafts until you review and send them.
 - Skip marks the vacancy `skipped` and immediately requests the next card.
 - Apply marks the row `applied_pending` after a Gmail draft is created, attaches
   the generated PDF, and sends a draft link. The user must review and send it.
@@ -88,9 +98,10 @@ only in your local n8n UI and keep personal CV data out of git.
 ```sh
 docker compose ps
 docker compose logs --tail=100 n8n
-docker compose logs --tail=100 cloudflared
+docker compose --profile telegram-poller logs --tail=100 telegram-poller
 ./scripts/export.sh
 docker compose exec -T n8n node --test /tests/*.test.cjs
+docker compose --profile telegram-poller run --rm --build --no-deps telegram-poller node --test /app/index.test.cjs
 ```
 
 `scripts/export.sh` writes separate workflow JSON files to `workflows/`.
@@ -99,15 +110,29 @@ workflow changes before committing them. The generated `N8N_ENCRYPTION_KEY`
 must be preserved with the n8n data volume; losing either can make stored
 credentials unreadable.
 
+## Always-on VPS
+
+The polling service keeps Telegram connected without a domain or inbound
+firewall ports. The VPS must still stay powered on and reachable. No VPS is
+created by this repository; provision one yourself, install Docker Compose, and
+copy the project, `.env`, and your private CV file to it. Do not expose port
+5678 publicly. Use an SSH port forward to open the n8n editor from your
+computer:
+
+```sh
+ssh -L 5678:127.0.0.1:5678 <user>@<vps-address>
+```
+
+Then open `http://localhost:5678`, configure the n8n credentials, import the
+workflows, and activate only `bot-router`. Keep the same `N8N_ENCRYPTION_KEY`
+with its n8n data volume when moving an existing installation. VPS hosting and
+Anthropic API usage may incur charges.
+
 ## Troubleshooting
 
-- **Telegram trigger does not activate:** check the Quick Tunnel URL printed by
-  `scripts/start.sh`, confirm n8n is reachable on `http://localhost:5678`, and
-  check the Telegram credential and n8n logs. Only one Telegram Trigger for a
-  bot is supported; keep it in `bot-router`.
-- **Quick Tunnel URL changed:** run `./scripts/start.sh` again, then verify the
-  trigger is active in n8n. Quick Tunnels are temporary and intended for
-  personal testing, not a stable production endpoint.
+- **No Telegram response:** check `TELEGRAM_BOT_TOKEN`, the poller logs, the
+  `TELEGRAM_FORWARD_SECRET` value, and that `bot-router` is active. The
+  outgoing Telegram credential must also be assigned in n8n.
 - **No vacancy card:** check that the `queue` headers are exact and that at
   least one row has `status=new`, an HTTPS `url`, and a 12-character lowercase
   hex `id`. A missing or malformed queue row is reported rather than silently
@@ -132,12 +157,13 @@ credentials unreadable.
 - Gotenberg HTML-to-PDF conversion and the workflow's draft-only shape are
   covered by local tests. Gmail's live attachment handling and returned draft
   URL have not been verified against a configured account.
-- The `config` sheet is documented but preferred/excluded keywords,
-  languages, and seniority are not yet applied by the workflows.
-- No `fill-queue` crawler is included. The official source review in
-  [docs/sources.md](./docs/sources.md) found no listing feed/API with both
-  verifiable terms and permitted use. Continue with manual `/add` until a
-  source's official integration and applicable terms are confirmed.
-- Google OAuth credential fields, Gmail node response details, and Telegram
-  webhook activation can vary by n8n version; configure and verify the nodes in
-  the n8n UI before relying on live operation.
+- Direct crawling and automatic Gmail-alert ingestion are not part of the
+  current manual `/add` and `/next` setup. The optional alert workflow remains
+  inactive. The official source review in [docs/sources.md](./docs/sources.md)
+  explains why the bot does not poll undocumented job-board APIs.
+- Real Telegram, Anthropic, Sheets, Drive, and Gmail credentials still need to
+  be configured in `.env` or the n8n UI. Real Telegram and Anthropic API
+  requests have not been tested end-to-end.
+- Google OAuth credential fields and Gmail node response details can vary by
+  n8n version; configure and verify the nodes in the n8n UI before relying on
+  the live application-draft flow.

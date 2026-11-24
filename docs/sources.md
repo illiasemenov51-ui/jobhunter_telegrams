@@ -11,8 +11,8 @@ that could be verified during this review. A sitemap intended for search
 engines is not treated as an ingestion API.
 
 Add vacancies manually with `/add <https-url>`. Saved-search email alerts can
-also be used as a human source: copy a vacancy link from the alert and add it
-with `/add`. Automatic email-alert ingestion is not configured.
+also be ingested from the user's Gmail `Job Alerts` label. The sites create and
+send those alerts; this project does not poll their listing endpoints.
 
 ## Findings
 
@@ -25,8 +25,10 @@ with `/add`. Automatic email-alert ingestion is not configured.
 
 ## Runtime behavior
 
-There is deliberately no `fill-queue` polling workflow yet. Creating one without
-a verified source would risk violating source rules. The existing `/add`
+There is deliberately no direct `fill-queue` crawler. Creating one without a
+verified source would risk violating source rules. `ingest-job-alerts` reads
+messages already delivered to the user's Gmail account, extracts recognized
+vacancy links, and deduplicates them without reopening decided rows. The existing `/add`
 workflow validates HTTPS URLs, derives a stable ID, and deduplicates entries.
 The separate `/next` action fetches only the single URL the user explicitly
 selected; a failed fetch still produces a manual-review card.

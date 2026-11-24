@@ -66,7 +66,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
         "text": "={{ $json.route === 'empty' ? 'No new vacancies in the queue.' : 'The next queue row needs a valid https URL and a 12-character SHA-256 id. Add it with /add <url> or fix the row.' }}",
         "additionalFields": {"appendAttribution": false}
       },
@@ -188,7 +188,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
         "text": "={{ $('Build card').first().json.card }}",
         "replyMarkup": "inlineKeyboard",
         "inlineKeyboard": {

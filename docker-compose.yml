@@ -8,14 +8,15 @@ services:
       N8N_HOST: localhost
       N8N_PORT: 5678
       N8N_PROTOCOL: http
-      N8N_WEBHOOK_URL: ${WEBHOOK_URL:-https://localhost/}
+      N8N_WEBHOOK_URL: ${WEBHOOK_URL:-http://localhost:5678/}
       N8N_PROXY_HOPS: 1
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       NODE_FUNCTION_ALLOW_BUILTIN: crypto,net
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_FORWARD_SECRET: ${TELEGRAM_FORWARD_SECRET:-}
       ALLOWED_CHAT_ID: ${ALLOWED_CHAT_ID:-}
-      LLM_MODEL: ${LLM_MODEL:-claude-3-5-sonnet-latest}
+      LLM_MODEL: ${LLM_MODEL:-claude-sonnet-5-5}
       CV_SOURCE: ${CV_SOURCE:-file}
       SHEET_ID: ${SHEET_ID:-}
       GOOGLE_DRIVE_CV_FILE_ID: ${GOOGLE_DRIVE_CV_FILE_ID:-}
@@ -26,11 +27,28 @@ services:
       - ./tests:/tests:ro
 
   cloudflared:
+    profiles: ["quick-tunnel"]
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
     command: tunnel --no-autoupdate --url http://n8n:5678
     depends_on:
       - n8n
+
+  telegram-poller:
+    profiles: ["telegram-poller"]
+    build:
+      context: ./services/telegram-poller
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_FORWARD_SECRET: ${TELEGRAM_FORWARD_SECRET:-}
+      N8N_WEBHOOK_URL_INTERNAL: http://n8n:5678/webhook/telegram-updates
+      OFFSET_FILE: /state/offset
+      POLL_TIMEOUT_SECONDS: "50"
+    depends_on:
+      - n8n
+    volumes:
+      - telegram_poller_state:/state
 
   gotenberg:
     image: gotenberg/gotenberg:8
@@ -40,3 +58,4 @@ services:
 
 volumes:
   n8n_data:
+  telegram_poller_state:

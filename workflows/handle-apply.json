@@ -67,7 +67,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.callback_query.message.chat.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
         "text": "This vacancy is no longer waiting for a decision. No draft was created.",
         "additionalFields": {"appendAttribution": false}
       },
@@ -200,7 +200,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
         "text": "={{ 'Could not read or parse this vacancy. Paste its text with /text ' + $('Action context').first().json.id + ' <vacancy text>, or continue using the unmodified base CV (no tailored cover letter).' }}",
         "replyMarkup": "inlineKeyboard",
         "inlineKeyboard": {
@@ -366,7 +366,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
         "text": "Base CV is missing or could not be read. Add data/cv_base.md, or configure CV_SOURCE=drive and GOOGLE_DRIVE_CV_FILE_ID. No draft was created.",
         "additionalFields": {"appendAttribution": false}
       },
@@ -473,7 +473,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
         "text": "Could not create a valid tailored CV from the model response. No draft was created; the vacancy remains available. Check the n8n execution and LLM credential, then retry.",
         "additionalFields": {"appendAttribution": false}
       },
@@ -629,7 +629,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
         "text": "={{ '✅ Gmail draft prepared (not sent).\\n' + ($('Name CV PDF').first().json.tailored ? 'Match: ' + $('Name CV PDF').first().json.match_score + '/100. Gaps: ' + ($('Name CV PDF').first().json.gaps.join(', ') || 'none reported.') : 'Used the unmodified base CV; no tailored cover letter was generated.') + '\\nDraft: https://mail.google.com/mail/u/0/#drafts/' + $('Create Gmail draft').first().json.id }}",
         "additionalFields": {"appendAttribution": false}
       },
@@ -667,7 +667,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
         "text": "Could not prepare the draft. No email was sent; the vacancy remains available. Check the n8n execution details before retrying.",
         "additionalFields": {"appendAttribution": false}
       },
@@ -681,7 +681,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
         "text": "The Gmail draft may already exist, but the queue update failed. Check Gmail Drafts before retrying. No email was sent.",
         "additionalFields": {"appendAttribution": false}
       },
