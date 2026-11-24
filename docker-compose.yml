@@ -17,6 +17,7 @@ services:
       TELEGRAM_FORWARD_SECRET: ${TELEGRAM_FORWARD_SECRET:-}
       ALLOWED_CHAT_ID: ${ALLOWED_CHAT_ID:-}
       LLM_MODEL: ${LLM_MODEL:-claude-sonnet-5-5}
+      JOB_LOCATION: ${JOB_LOCATION:-Warszawa}
       CV_SOURCE: ${CV_SOURCE:-file}
       SHEET_ID: ${SHEET_ID:-}
       GOOGLE_DRIVE_CV_FILE_ID: ${GOOGLE_DRIVE_CV_FILE_ID:-}
@@ -43,7 +44,11 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_FORWARD_SECRET: ${TELEGRAM_FORWARD_SECRET:-}
       N8N_WEBHOOK_URL_INTERNAL: http://n8n:5678/webhook/telegram-updates
+      ALLOWED_CHAT_ID: ${ALLOWED_CHAT_ID:-}
+      BOT_DEFAULT_LANGUAGE: ${BOT_DEFAULT_LANGUAGE:-pl}
+      JOB_LOCATION: ${JOB_LOCATION:-Warszawa, Poland}
       OFFSET_FILE: /state/offset
+      LANGUAGE_FILE: /state/languages.json
       POLL_TIMEOUT_SECONDS: "50"
     depends_on:
       - n8n

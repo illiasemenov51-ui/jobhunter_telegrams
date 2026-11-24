@@ -47,8 +47,12 @@ if [ "$attempt" -eq 60 ]; then
 fi
 
 if grep -Eq '^TELEGRAM_BOT_TOKEN=.{1,}$' .env; then
-  docker compose --profile telegram-poller up -d --build telegram-poller
-  printf 'n8n is ready at http://localhost:5678\nTelegram poller started; activate the bot-router workflow in n8n before using the bot.\n'
+  if docker compose exec -T n8n n8n list:workflow --active=true | grep -q '|bot-router$'; then
+    docker compose --profile telegram-poller up -d --build telegram-poller
+    printf 'n8n is ready at http://localhost:5678\nTelegram polling is running.\n'
+  else
+    printf 'n8n is ready at http://localhost:5678\nImport and activate bot-router in n8n, then rerun this script to start Telegram polling.\n'
+  fi
 else
   printf 'n8n is ready at http://localhost:5678\nSet TELEGRAM_BOT_TOKEN in .env, then rerun this script to start Telegram polling.\n'
 fi

@@ -15,7 +15,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const raw = String($json.vacancy_url || '').trim();\nlet url;\ntry { url = new URL(raw); } catch { return { json: { valid: false, error: 'Please use a valid https URL.' } }; }\nconst host = url.hostname.toLowerCase();\nconst net = require('net');\nif (url.protocol !== 'https:' || url.username || url.password || net.isIP(host) || !host.includes('.') || /(^|\\.)(localhost|local|internal|test|invalid)$/.test(host)) {\n  return { json: { valid: false, error: 'Only public https vacancy URLs are accepted.' } };\n}\nconst crypto = require('crypto');\nconst normalizedUrl = url.href;\nconst id = crypto.createHash('sha256').update(normalizedUrl).digest('hex').slice(0, 12);\nlet source = 'manual';\nif (host === 'nofluffjobs.com' || host.endsWith('.nofluffjobs.com')) source = 'nofluffjobs';\nelse if (host === 'justjoin.it' || host.endsWith('.justjoin.it')) source = 'justjoinit';\nelse if (host === 'pracuj.pl' || host.endsWith('.pracuj.pl')) source = 'pracuj';\nelse if (host === 'olx.pl' || host.endsWith('.olx.pl')) source = 'olx';\nreturn { json: { valid: true, id, url: normalizedUrl, status: 'new', source, title: '', company: '', location: '', added_at: new Date().toISOString(), decided_at: '', draft_link: '', notes: '' } };"
+        "jsCode": "const raw = String($json.vacancy_url || '').trim();\nconst locale = ['en', 'pl', 'ru', 'uk'].includes($json.ui_language) ? $json.ui_language : 'pl';\nconst copy = {\n  en: { invalid: 'Please use a valid HTTPS URL.', publicOnly: 'Only public HTTPS vacancy URLs are accepted.' },\n  pl: { invalid: 'Podaj prawidłowy adres URL HTTPS.', publicOnly: 'Akceptowane są wyłącznie publiczne adresy HTTPS ofert pracy.' },\n  ru: { invalid: 'Укажите корректный HTTPS-адрес.', publicOnly: 'Принимаются только публичные HTTPS-ссылки на вакансии.' },\n  uk: { invalid: 'Вкажи коректну HTTPS-адресу.', publicOnly: 'Приймаються лише публічні HTTPS-посилання на вакансії.' }\n};\nlet url;\ntry { url = new URL(raw); } catch { return { json: { valid: false, error: copy[locale].invalid } }; }\nconst host = url.hostname.toLowerCase();\nconst net = require('net');\nif (url.protocol !== 'https:' || url.username || url.password || net.isIP(host) || !host.includes('.') || /(^|\\.)(localhost|local|internal|test|invalid)$/.test(host)) {\n  return { json: { valid: false, error: copy[locale].publicOnly } };\n}\nconst crypto = require('crypto');\nconst normalizedUrl = url.href;\nconst id = crypto.createHash('sha256').update(normalizedUrl).digest('hex').slice(0, 12);\nlet source = 'manual';\nif (host === 'nofluffjobs.com' || host.endsWith('.nofluffjobs.com')) source = 'nofluffjobs';\nelse if (host === 'justjoin.it' || host.endsWith('.justjoin.it')) source = 'justjoinit';\nelse if (host === 'pracuj.pl' || host.endsWith('.pracuj.pl')) source = 'pracuj';\nelse if (host === 'olx.pl' || host.endsWith('.olx.pl')) source = 'olx';\nreturn { json: { valid: true, id, url: normalizedUrl, status: 'new', source, title: '', company: '', location: '', added_at: new Date().toISOString(), decided_at: '', draft_link: '', notes: '' } };"
       },
       "id": "8016a69e-c33d-41c9-a0af-bfa285ad8338",
       "name": "Validate URL and hash",
@@ -48,12 +48,13 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id }}",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id || $env.ALLOWED_CHAT_ID }}",
         "text": "={{ $json.error }}",
         "additionalFields": {"appendAttribution": false}
       },
       "id": "994678f6-2334-4f66-9965-6018f2811f15",
       "name": "Explain invalid URL",
+      "credentials": {"telegramApi": {"id": "B4LG8o0n72EIDULP", "name": "Telegram account"}},
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [720, 160]
@@ -71,6 +72,7 @@
       },
       "id": "4d773bc6-3e0f-40c3-85cb-92c247f54a8b",
       "name": "Find duplicate",
+      "credentials": {"googleApi": {"id": "04IHr0bXCinPzEdE", "name": "Google Service Account account"}},
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [720, -80],
@@ -101,12 +103,13 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id }}",
-        "text": "This vacancy is already in the queue.",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id || $env.ALLOWED_CHAT_ID }}",
+        "text": "={{ ({ en: 'This vacancy is already in the queue.', pl: 'Ta oferta jest już w kolejce.', ru: 'Эта вакансия уже есть в очереди.', uk: 'Ця вакансія вже є в черзі.' })[$('When Called').first().json.ui_language || 'pl'] }}",
         "additionalFields": {"appendAttribution": false}
       },
       "id": "03b53e83-c52f-4a1f-98bd-3ad3326710b1",
       "name": "Confirm duplicate",
+      "credentials": {"telegramApi": {"id": "B4LG8o0n72EIDULP", "name": "Telegram account"}},
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [1200, -200]
@@ -151,6 +154,7 @@
       },
       "id": "06b1c2ab-e938-4e10-b261-a48bb805c25a",
       "name": "Append vacancy",
+      "credentials": {"googleApi": {"id": "04IHr0bXCinPzEdE", "name": "Google Service Account account"}},
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [1200, 40]
@@ -159,12 +163,13 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id }}",
-        "text": "Vacancy added to the queue.",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.message?.chat?.id || $env.ALLOWED_CHAT_ID }}",
+        "text": "={{ ({ en: 'Vacancy added to the queue.', pl: 'Ofertę dodano do kolejki.', ru: 'Вакансия добавлена в очередь.', uk: 'Вакансію додано до черги.' })[$('When Called').first().json.ui_language || 'pl'] }}",
         "additionalFields": {"appendAttribution": false}
       },
       "id": "a34467ad-9a7f-4d6e-8405-e76b5956e1d1",
       "name": "Confirm added",
+      "credentials": {"telegramApi": {"id": "B4LG8o0n72EIDULP", "name": "Telegram account"}},
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [1440, 40]

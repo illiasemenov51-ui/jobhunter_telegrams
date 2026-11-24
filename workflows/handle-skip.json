@@ -25,6 +25,7 @@
       },
       "id": "096bdb41-a3c1-466b-8b5a-a34bc48720e4",
       "name": "Find vacancy by id",
+      "credentials": {"googleApi": {"id": "04IHr0bXCinPzEdE", "name": "Google Service Account account"}},
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [240, 0],
@@ -75,6 +76,7 @@
       },
       "id": "270f2e65-7e3e-4ddc-9bd6-b5487ae32da0",
       "name": "Mark vacancy skipped",
+      "credentials": {"googleApi": {"id": "04IHr0bXCinPzEdE", "name": "Google Service Account account"}},
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [720, -80]
@@ -107,12 +109,13 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.callback_query?.message?.chat?.id }}",
-        "text": "This vacancy is no longer available for a decision. No queue status was changed.",
+        "chatId": "={{ $('When Called').first().json.chat_id || $('When Called').first().json.callback_query?.message?.chat?.id || $env.ALLOWED_CHAT_ID }}",
+        "text": "={{ ({ en: 'This vacancy is no longer available for a decision. No queue status was changed.', pl: 'Ta oferta nie jest już dostępna do podjęcia decyzji. Status kolejki nie został zmieniony.', ru: 'Эта вакансия больше недоступна для решения. Статус очереди не изменён.', uk: 'Ця вакансія більше недоступна для рішення. Статус черги не змінено.' })[$('When Called').first().json.ui_language || 'pl'] }}",
         "additionalFields": {"appendAttribution": false}
       },
       "id": "c0f80fd0-c186-446c-896d-fd60a01b5035",
       "name": "Explain stale action",
+      "credentials": {"telegramApi": {"id": "B4LG8o0n72EIDULP", "name": "Telegram account"}},
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [720, 120]

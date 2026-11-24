@@ -1,0 +1,82 @@
+{
+  "id": "2f8f76bc-1f77-4aa1-a31d-7d37828f0101",
+  "name": "search-public-jobs",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "b11c9b9e-8d1d-4c44-a49b-11d60eef72f1",
+      "name": "When Called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const event = $('When Called').first().json;\nconst locale = ['en', 'pl', 'ru', 'uk'].includes(event.ui_language) ? event.ui_language : 'pl';\nconst input = String(event.search_query || '').trim();\nconst fallbackLocation = String($env.JOB_LOCATION || 'Warszawa').trim();\nconst separator = input.lastIndexOf('|');\nconst query = separator < 0 ? input : input.slice(0, separator).trim();\nconst location = (separator < 0 ? fallbackLocation : input.slice(separator + 1).trim()) || fallbackLocation;\nconst esc = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\\\"/g, '&quot;');\nconst copy = {\n  en: { usage: 'Usage: /search <keywords> [| <city>]', tooLong: 'Keep keywords under 120 characters and city under 80 characters.', local: 'Search locally in', remote: 'Also search remote vacancies', note: 'The city defaults to JOB_LOCATION. Remote links use the keywords “remote” and “praca zdalna”; refine with each site’s filters. These links open official search pages only; the bot does not download listings. Add a chosen vacancy with /add <URL>.' },\n  pl: { usage: 'Użycie: /search <słowa kluczowe> [| <miasto>]', tooLong: 'Fraza może mieć maks. 120 znaków, a miasto 80 znaków.', local: 'Szukaj ofert w okolicy', remote: 'Szukaj także ofert zdalnych', note: 'Domyślne miasto jest ustawiane przez JOB_LOCATION. Linki zdalne używają fraz „remote” i „praca zdalna”; doprecyzuj filtry na stronie. Linki otwierają wyłącznie oficjalne wyszukiwarki; bot nie pobiera ofert. Wybraną ofertę dodaj przez /add <URL>.' },\n  ru: { usage: 'Использование: /search <ключевые слова> [| <город>]', tooLong: 'Запрос должен быть короче 120 символов, город — 80 символов.', local: 'Поиск вакансий в городе', remote: 'Также поиск удалённых вакансий', note: 'Город по умолчанию задаёт JOB_LOCATION. Для удалённого поиска используются слова «remote» и «praca zdalna»; уточните фильтры на сайте. Ссылки открывают только официальные страницы поиска; бот не скачивает объявления. Добавьте вакансию командой /add <URL>.' },\n  uk: { usage: 'Використання: /search <ключові слова> [| <місто>]', tooLong: 'Запит має бути до 120 символів, місто — до 80 символів.', local: 'Пошук вакансій у місті', remote: 'Також пошук віддалених вакансій', note: 'Місто за замовчуванням задає JOB_LOCATION. Для віддаленого пошуку використовуються слова «remote» і «praca zdalna»; уточни фільтри на сайті. Посилання відкривають лише офіційні сторінки пошуку; бот не завантажує оголошення. Додай вакансію командою /add <URL>.' }\n};\nif (!query) return {json: {chat_id: event.chat_id, text: copy[locale].usage}};\nif (query.length > 120 || location.length > 80) return {json: {chat_id: event.chat_id, text: copy[locale].tooLong}};\nconst slug = location.toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');\nconst keyword = encodeURIComponent(query);\nconst localLinks = [\n  ['Pracuj.pl', `https://www.pracuj.pl/praca/${slug};wp?kw=${keyword}`],\n  ['JustJoin.it', `https://justjoin.it/job-offers/${slug}?keyword=${keyword}`],\n  ['OLX Praca', `https://www.olx.pl/praca/${slug}/q-${keyword}/`],\n  ['LinkedIn', `https://www.linkedin.com/jobs/search/?keywords=${keyword}&location=${encodeURIComponent(location)}`]\n];\nconst remoteLinks = [];\nfor (const term of ['remote', 'praca zdalna']) {\n  const remoteKeyword = encodeURIComponent(`${query} ${term}`);\n  remoteLinks.push(\n    [`Pracuj.pl — ${term}`, `https://www.pracuj.pl/praca?kw=${remoteKeyword}`],\n    [`JustJoin.it — ${term}`, `https://justjoin.it/job-offers?keyword=${remoteKeyword}`],\n    [`OLX Praca — ${term}`, `https://www.olx.pl/praca/q-${remoteKeyword}/`],\n    [`LinkedIn — ${term}`, `https://www.linkedin.com/jobs/search/?keywords=${remoteKeyword}&location=Poland`]\n  );\n}\nconst renderLinks = links => links.map(([name, url]) => `• <a href=\\\"${url.replace(/&/g, '&amp;')}\\\">${esc(name)}</a>`).join('\\n');\nconst text = `🔎 <b>${copy[locale].local} ${esc(location)} — ${esc(query)}</b>\\n${renderLinks(localLinks)}\\n\\n🌐 <b>${copy[locale].remote} — ${esc(query)}</b>\\n${renderLinks(remoteLinks)}\\n\\n${copy[locale].note}`;\nreturn {json: {chat_id: event.chat_id, text}};"
+      },
+      "id": "d758fe3b-7f3c-4099-84dd-29945918889a",
+      "name": "Build official search links",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "896944d4-fc9b-4f63-a62e-5832f6494ba1",
+      "name": "Send search results",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When Called": {
+      "main": [
+        [
+          {
+            "node": "Build official search links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build official search links": {
+      "main": [
+        [
+          {
+            "node": "Send search results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

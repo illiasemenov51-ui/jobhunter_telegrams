@@ -3,6 +3,14 @@
   "name": "ingest-job-alerts",
   "nodes": [
     {
+      "parameters": {"inputSource": "passthrough"},
+      "id": "b0d97bc2-1c21-4a64-a70e-94ed6bc7e2fd",
+      "name": "When Called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 120]
+    },
+    {
       "parameters": {
         "authentication": "serviceAccount",
         "operation": "read",
@@ -115,6 +123,7 @@
   ],
   "connections": {
     "Every 6 hours": {"main": [[{"node":"Read job alert emails","type":"main","index":0}]]},
+    "When Called": {"main": [[{"node":"Read job alert emails","type":"main","index":0}]]},
     "Read job alert emails": {"main": [[{"node":"Extract vacancy links","type":"main","index":0}]]},
     "Extract vacancy links": {"main": [[{"node":"Read existing queue","type":"main","index":0}]]},
     "Read existing queue": {"main": [[{"node":"Keep only new vacancies","type":"main","index":0}]]},

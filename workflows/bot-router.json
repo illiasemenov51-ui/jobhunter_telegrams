@@ -18,7 +18,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const envelope = $json;\nconst expectedSecret = String($env.TELEGRAM_FORWARD_SECRET || '');\nif (!expectedSecret || String(envelope.headers?.['x-telegram-forward-secret'] || '') !== expectedSecret) return [];\nconst event = envelope.body && typeof envelope.body === 'object' ? envelope.body : envelope;\nconst chatId = event.message?.chat?.id ?? event.callback_query?.message?.chat?.id;\nif (chatId === undefined || String(chatId) !== String($env.ALLOWED_CHAT_ID || '')) return [];\nconst text = event.message?.text || '';\nlet route = '';\nlet id = '';\nif (/^\\/help(?:@\\w+)?(?:\\s.*)?$/i.test(text)) route = 'help';\nelse if (/^\\/(?:start|next)(?:@\\w+)?(?:\\s.*)?$/i.test(text)) route = 'next';\nelse {\n  const add = text.match(/^\\/add(?:@\\w+)?\\s+(\\S+)\\s*$/i);\n  const pasted = text.match(/^\\/text(?:@\\w+)?\\s+([a-f0-9]{12})\\s+([\\s\\S]{1,4000})$/i);\n  if (add) { route = 'add'; event.vacancy_url = add[1]; }\n  else if (pasted) { route = 'text'; id = pasted[1].toLowerCase(); event.vacancy_text = pasted[2].trim(); }\n}\nif (!route && event.callback_query) {\n  const data = event.callback_query.data || '';\n  if (data === 'stop') route = 'stop';\n  else {\n    const action = data.match(/^(apply|skip|unmodified):([a-f0-9]{12})$/i);\n    if (action) { route = action[1].toLowerCase(); id = action[2].toLowerCase(); }\n  }\n}\nif (!route) return [];\nreturn [{ json: { ...event, chat_id: String(chatId), route, id } }];"
+        "jsCode": "const envelope = $json;\nconst expectedSecret = String($env.TELEGRAM_FORWARD_SECRET || '');\nif (!expectedSecret || String(envelope.headers?.['x-telegram-forward-secret'] || '') !== expectedSecret) return [];\nconst event = envelope.body && typeof envelope.body === 'object' ? envelope.body : envelope;\nconst chatId = event.message?.chat?.id ?? event.callback_query?.message?.chat?.id;\nif (chatId === undefined || String(chatId) !== String($env.ALLOWED_CHAT_ID || '')) return [];\nconst text = String(event.message?.text || '').trim();\nconst supportedLanguages = ['en', 'pl', 'ru', 'uk'];\nconst ui_language = supportedLanguages.includes(event.ui_language) ? event.ui_language : 'pl';\nlet route = '';\nlet id = '';\nif (/^\\/help(?:@\\w+)?(?:\\s.*)?$/i.test(text)) route = 'help';\nelse if (/^\\/lang(?:@\\w+)?(?:\\s.*)?$/i.test(text)) {\n  route = 'lang';\n  event.requested_language = (text.match(/^\\/lang(?:@\\w+)?\\s+(\\S+)/i) || [])[1]?.toLowerCase() || '';\n}\nelse if (/^\\/search(?:@\\w+)?(?:\\s.*)?$/i.test(text)) {\n  route = 'search';\n  event.search_query = text.replace(/^\\/search(?:@\\w+)?/i, '').trim();\n}\nelse if (/^\\/(?:start|next)(?:@\\w+)?(?:\\s.*)?$/i.test(text)) route = 'next';\nelse {\n  const add = text.match(/^\\/add(?:@\\w+)?\\s+(?:\\[[^\\]]*\\]\\()?((?:https?:\\/\\/)[^\\s)]+)\\)?\\s*$/i);\n  const pasted = text.match(/^\\/text(?:@\\w+)?\\s+([a-f0-9]{12})\\s+([\\s\\S]{1,4000})$/i);\n  if (add) { route = 'add'; event.vacancy_url = add[1]; }\n  else if (pasted) { route = 'text'; id = pasted[1].toLowerCase(); event.vacancy_text = pasted[2].trim(); }\n}\nif (!route && event.callback_query) {\n  const data = event.callback_query.data || '';\n  if (data === 'stop') route = 'stop';\n  else {\n    const action = data.match(/^(apply|skip|unmodified):([a-f0-9]{12})$/i);\n    if (action) { route = action[1].toLowerCase(); id = action[2].toLowerCase(); }\n  }\n}\nif (!route) return [];\nreturn [{ json: { ...event, ui_language, chat_id: String(chatId), route, id } }];"
       },
       "id": "ff2558ae-97dc-4fb9-9097-b46d8bb7e248",
       "name": "Authorize and classify",
@@ -29,8 +29,8 @@
     {
       "parameters": {
         "mode": "expression",
-        "numberOutputs": 8,
-        "output": "={{ ['next', 'add', 'apply', 'skip', 'stop', 'text', 'unmodified', 'help'].indexOf($json.route) }}",
+        "numberOutputs": 10,
+        "output": "={{ ['next', 'add', 'apply', 'skip', 'stop', 'text', 'unmodified', 'help', 'search', 'lang'].indexOf($json.route) }}",
         "options": {}
       },
       "id": "1df7d4ca-d428-4f85-9295-91d6f1c10bcc",
@@ -76,7 +76,8 @@
       "name": "Answer apply callback",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [760, 80]
+      "position": [760, 80],
+      "credentials": {"telegramApi": {"id": "B4LG8o0n72EIDULP", "name": "Telegram account"}}
     },
     {
       "parameters": {
@@ -102,7 +103,8 @@
       "name": "Answer skip callback",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [760, 200]
+      "position": [760, 200],
+      "credentials": {"telegramApi": {"id": "B4LG8o0n72EIDULP", "name": "Telegram account"}}
     },
     {
       "parameters": {
@@ -128,21 +130,23 @@
       "name": "Answer stop callback",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [760, 320]
+      "position": [760, 320],
+      "credentials": {"telegramApi": {"id": "B4LG8o0n72EIDULP", "name": "Telegram account"}}
     },
     {
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
         "chatId": "={{ $json.chat_id }}",
-        "text": "Stopped",
+        "text": "={{ ({ en: 'Stopped.', pl: 'Zatrzymano.', ru: 'Остановлено.', uk: 'Зупинено.' })[$json.ui_language || 'pl'] }}",
         "additionalFields": {"appendAttribution": false}
       },
       "id": "8c6b2c5b-86a7-42c6-8c0c-1b1b8c2f66d0",
       "name": "Send stopped",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [1000, 320]
+      "position": [1000, 320],
+      "credentials": {"telegramApi": {"id": "B4LG8o0n72EIDULP", "name": "Telegram account"}}
     },
     {
       "parameters": {
@@ -155,21 +159,23 @@
       "name": "Answer unmodified callback",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [760, 440]
+      "position": [760, 440],
+      "credentials": {"telegramApi": {"id": "B4LG8o0n72EIDULP", "name": "Telegram account"}}
     },
     {
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
         "chatId": "={{ $json.chat_id }}",
-        "text": "Job Swipe commands:\\n/next — show the next vacancy\\n/add <https://...> — add a vacancy\\n/text <id> <vacancy text> — provide posting text when a page cannot be read\\n\\nApply creates a tailored CV PDF and a Gmail draft only. Review and send the application yourself. /start is the same as /next.",
+        "text": "={{ ({ en: 'Job Swipe commands:\\n/next — show the next vacancy\\n/add <https://...> — add a vacancy\\n/search <keywords> [| <city>] — open local and remote official-site searches\\n/lang en|pl|ru|uk — change bot language\\n/text <id> <vacancy text> — provide posting text when a page cannot be read\\n\\nApply creates a tailored CV PDF and a Gmail draft only, in the vacancy language. Review and send the application yourself. /start is the same as /next.', pl: 'Polecenia Job Swipe:\\n/next — pokaż następną ofertę\\n/add <https://...> — dodaj ofertę\\n/search <fraza> [| <miasto>] — otwórz lokalne i zdalne wyszukiwanie na oficjalnych stronach\\n/lang en|pl|ru|uk — zmień język bota\\n/text <id> <tekst oferty> — wklej tekst, gdy strona jest niedostępna\\n\\nApply tworzy dopasowane CV PDF i szkic Gmaila w języku oferty. Sprawdź i wyślij aplikację samodzielnie. /start działa jak /next.', ru: 'Команды Job Swipe:\\n/next — показать следующую вакансию\\n/add <https://...> — добавить вакансию\\n/search <запрос> [| <город>] — открыть локальный поиск и поиск удалённых вакансий на официальных сайтах\\n/lang en|pl|ru|uk — изменить язык бота\\n/text <id> <текст вакансии> — вставить текст, если страница недоступна\\n\\nApply создаёт адаптированное CV в PDF и черновик Gmail на языке вакансии. Проверьте и отправьте отклик самостоятельно. /start работает как /next.', uk: 'Команди Job Swipe:\\n/next — показати наступну вакансію\\n/add <https://...> — додати вакансію\\n/search <запит> [| <місто>] — відкрити локальний пошук і пошук віддалених вакансій на офіційних сайтах\\n/lang en|pl|ru|uk — змінити мову бота\\n/text <id> <текст вакансії> — вставити текст, якщо сторінка недоступна\\n\\nApply створює адаптоване CV у PDF і чернетку Gmail мовою вакансії. Перевір і надішли відгук самостійно. /start працює як /next.' })[$json.ui_language || 'pl'] }}",
         "additionalFields": {"appendAttribution": false}
       },
       "id": "032a873b-23fa-46a9-9b89-05463bfa2a92",
       "name": "Send help",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [760, 560]
+      "position": [760, 560],
+      "credentials": {"telegramApi": {"id": "B4LG8o0n72EIDULP", "name": "Telegram account"}}
     },
     {
       "parameters": {"mode": "runOnceForEachItem", "jsCode": "return { json: $('Authorize and classify').first().json };"},
@@ -202,6 +208,34 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [880, 440]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {"__rl": true, "value": "2f8f76bc-1f77-4aa1-a31d-7d37828f0101", "mode": "id"},
+        "mode": "once",
+        "options": {"waitForSubWorkflow": true}
+      },
+      "id": "6e81f1c8-e1bc-47cf-b02b-f317c07b5a15",
+      "name": "Search official sites",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [760, 680]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ (() => { const ui = $json.ui_language || 'pl'; const requested = $json.requested_language; const copy = { en: { selected: 'Bot language set to English.', usage: 'Choose a language with /lang en, /lang pl, /lang ru, or /lang uk.' }, pl: { selected: 'Język bota ustawiony na polski.', usage: 'Wybierz język poleceniem /lang en, /lang pl, /lang ru lub /lang uk.' }, ru: { selected: 'Язык бота установлен: русский.', usage: 'Выберите язык командой /lang en, /lang pl, /lang ru или /lang uk.' }, uk: { selected: 'Мову бота встановлено: українська.', usage: 'Вибери мову командою /lang en, /lang pl, /lang ru або /lang uk.' } }; return ['en','pl','ru','uk'].includes(requested) ? copy[requested].selected : copy[ui].usage; })() }}",
+        "additionalFields": {"appendAttribution": false}
+      },
+      "id": "962dd273-3587-4e8d-a5a2-f42c72b5c317",
+      "name": "Confirm language",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [760, 800],
+      "credentials": {"telegramApi": {"id": "B4LG8o0n72EIDULP", "name": "Telegram account"}}
     }
   ],
   "connections": {
@@ -216,7 +250,9 @@
         [{"node": "Answer stop callback", "type": "main", "index": 0}],
         [{"node": "Handle apply", "type": "main", "index": 0}],
         [{"node": "Answer unmodified callback", "type": "main", "index": 0}],
-        [{"node": "Send help", "type": "main", "index": 0}]
+        [{"node": "Send help", "type": "main", "index": 0}],
+        [{"node": "Search official sites", "type": "main", "index": 0}],
+        [{"node": "Confirm language", "type": "main", "index": 0}]
       ]
     },
     "Answer apply callback": {"main": [[{"node": "Restore apply event", "type": "main", "index": 0}]]},

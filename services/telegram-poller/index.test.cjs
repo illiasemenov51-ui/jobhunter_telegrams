@@ -94,6 +94,45 @@ test('readConfig requires the bot token and a long random forwarding secret', ()
   }), /from 1 to 50/);
   assert.equal(readConfig({TELEGRAM_BOT_TOKEN: token, TELEGRAM_FORWARD_SECRET: secret}).webhookUrl,
     'http://n8n:5678/webhook/telegram-updates');
+  assert.throws(() => readConfig({
+    TELEGRAM_BOT_TOKEN: token,
+    TELEGRAM_FORWARD_SECRET: secret,
+    BOT_DEFAULT_LANGUAGE: 'de'
+  }), /BOT_DEFAULT_LANGUAGE must be en, pl, ru, or uk/);
+});
+
+test('pollOnce persists the authorized chat language and attaches it to future updates', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'telegram-language-'));
+  const languageFile = path.join(directory, 'languages.json');
+  t.after(() => fs.rm(directory, {recursive: true, force: true}));
+
+  const updates = [
+    {update_id: 40, message: {chat: {id: 99}, text: '/lang ru'}},
+    {update_id: 41, message: {chat: {id: 42}, text: '/lang uk'}},
+    {update_id: 42, callback_query: {message: {chat: {id: 99}}, data: 'stop'}}
+  ];
+  const forwarded = [];
+  const fetchImpl = async (url, options) => {
+    if (url.endsWith('/getUpdates')) return makeResponse({ok: true, result: updates});
+    forwarded.push(JSON.parse(options.body));
+    return makeResponse({ok: true, result: {}});
+  };
+  const cursor = {offset: 40};
+
+  await pollOnce({
+    token,
+    cursor,
+    webhookUrl: 'http://n8n:5678/webhook/telegram-updates',
+    secret,
+    languageFile,
+    defaultLanguage: 'pl',
+    allowedChatId: '99',
+    fetchImpl,
+    saveOffset: async () => {}
+  });
+
+  assert.deepEqual(forwarded.map(update => update.ui_language), ['ru', 'pl', 'ru']);
+  assert.deepEqual(JSON.parse(await fs.readFile(languageFile, 'utf8')), {'99': 'ru'});
 });
 
 test('polling offset survives restart and rejects corrupt state', async t => {

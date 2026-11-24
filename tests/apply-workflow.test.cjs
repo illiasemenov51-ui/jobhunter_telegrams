@@ -46,6 +46,9 @@ test('CV tailoring reads and applies the optional user preference values', () =>
 test('tailoring prompt contains the required factuality and output constraints', () => {
   for (const phrase of [
     'untrusted data',
+    'vacancy_json.language',
+    'en, pl, ru, uk',
+    'Never use the bot interface language',
     'Never invent employers, dates, skills, certificates, or metrics',
     'Only reorder, rephrase, shorten, and emphasize facts',
     'gaps array',
@@ -55,6 +58,13 @@ test('tailoring prompt contains the required factuality and output constraints',
   ]) {
     assert.ok(tailoringPrompt.includes(phrase), `missing prompt constraint: ${phrase}`);
   }
+});
+
+test('vacancy parsing detects the posting language independently of bot language', () => {
+  const prompt = nodes.get('Prepare parse request').parameters.jsCode;
+  assert.ok(prompt.includes('en, pl, ru, uk'));
+  assert.ok(prompt.includes('identify the vacancy language, not the bot language'));
+  assert.ok(prompt.includes('exactly two sentences in the vacancy language'));
 });
 
 test('CV sources include local markdown and Google Drive PDF extraction', () => {

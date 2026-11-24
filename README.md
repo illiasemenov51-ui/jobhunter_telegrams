@@ -15,7 +15,10 @@ sends email or submits an application.
    ```
 
 2. Edit `.env` and set `TELEGRAM_BOT_TOKEN`, `ALLOWED_CHAT_ID`, `SHEET_ID`,
-   `CV_SOURCE`, and (if needed) `GOOGLE_DRIVE_CV_FILE_ID`. The start script
+   `CV_SOURCE`, and (if needed) `GOOGLE_DRIVE_CV_FILE_ID`. The default bot
+   language is Polish; set `BOT_DEFAULT_LANGUAGE` to `en`, `pl`, `ru`, or `uk`
+   to change it. `JOB_LOCATION` defaults to Warszawa and can be overridden
+   locally. The start script
    generates `N8N_ENCRYPTION_KEY` and `TELEGRAM_FORWARD_SECRET` when missing.
    The default model is `claude-sonnet-5-5`; Anthropic bills API usage. Do not
    put credentials in workflow JSON or commit `.env`.
@@ -26,9 +29,9 @@ sends email or submits an application.
    ./scripts/import.sh
    ```
 
-   The script starts n8n, Gotenberg, and the Telegram polling service when the
-   bot token is configured. Polling needs outbound HTTPS only, not a public URL
-   or domain. The n8n editor remains bound to localhost.
+   The script starts n8n and Gotenberg. Telegram polling starts after the bot
+   token is configured and `bot-router` is active. Polling needs outbound HTTPS
+   only, not a public URL or domain. The n8n editor remains bound to localhost.
 4. Open `http://localhost:5678`, create the n8n owner account, and configure
    credentials in n8n:
    - **Telegram API:** create a bot with BotFather. Put its token in
@@ -62,9 +65,13 @@ sends email or submits an application.
      PDF file ID, then make sure the Drive credential can read it.
 7. In n8n, open the workflows and assign credentials to their nodes. Activate
    **only `bot-router`**; its private Webhook routes updates from the polling
-   service to the inactive sub-workflows. Use the same bot configured above.
+   service to the inactive sub-workflows. Use the same bot configured above,
+   then rerun `./scripts/start.sh` to start polling.
 8. Send `/help` to see the bot commands, `/next` to review the next vacancy,
-   or `/add https://...` to add a vacancy manually.
+   `/search junior Java | Kraków` to open official-site results for that city
+   plus remote-keyword searches, or
+   `/add https://...` to add a vacancy manually. Use `/lang en`, `/lang pl`,
+   `/lang ru`, or `/lang uk` to change the bot language.
 
 ### Optional Gmail alerts (not enabled)
 
@@ -81,6 +88,16 @@ only in your local n8n UI and keep personal CV data out of git.
   with Apply, Skip, and Stop buttons.
 - `/help` lists the available commands and explains that applications remain
   drafts until you review and send them.
+- `/lang en|pl|ru|uk` selects the interface language. The selection is persisted
+  by the Telegram poller in its private state volume; the default is Polish.
+- `/search <keywords> | <city>` returns local search links on Pracuj.pl,
+  JustJoin.it, OLX Praca, and LinkedIn, plus remote-oriented searches using
+  `remote` and `praca zdalna`. The city defaults to `JOB_LOCATION`. Remote
+  links are keyword searches, not guaranteed board filters; refine them on the
+  site. The bot does not download or import listings. Add a chosen vacancy
+  with `/add <URL>`.
+- The CV and cover letter follow the language of the vacancy (English, Polish,
+  Russian, or Ukrainian), independently of the bot's interface language.
 - Skip marks the vacancy `skipped` and immediately requests the next card.
 - Apply marks the row `applied_pending` after a Gmail draft is created, attaches
   the generated PDF, and sends a draft link. The user must review and send it.
@@ -158,9 +175,10 @@ Anthropic API usage may incur charges.
   covered by local tests. Gmail's live attachment handling and returned draft
   URL have not been verified against a configured account.
 - Direct crawling and automatic Gmail-alert ingestion are not part of the
-  current manual `/add` and `/next` setup. The optional alert workflow remains
-  inactive. The official source review in [docs/sources.md](./docs/sources.md)
-  explains why the bot does not poll undocumented job-board APIs.
+  current manual `/add`, official-site search-link, and `/next` setup. The
+  optional alert workflow remains inactive. The official source review in
+  [docs/sources.md](./docs/sources.md) explains why the bot does not poll
+  undocumented job-board APIs.
 - Real Telegram, Anthropic, Sheets, Drive, and Gmail credentials still need to
   be configured in `.env` or the n8n UI. Real Telegram and Anthropic API
   requests have not been tested end-to-end.
